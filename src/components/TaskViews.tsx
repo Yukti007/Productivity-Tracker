@@ -9,18 +9,23 @@ export function TaskRow({ task, showDate = false, compact = false }: { task: Tas
   const { dispatch, state } = useStore();
   const { openTask } = useUI();
   const goal = task.goalId ? state.goals.find((g) => g.id === task.goalId) : undefined;
+  const urgent = task.priority === 'high' && task.status !== 'done';
 
   return (
-    <li className={`task-row ${compact ? 'compact' : ''} is-${task.status}`}>
+    <li className={`task-row ${compact ? 'compact' : ''} is-${task.status} ${urgent ? 'is-urgent' : ''}`}>
       <StatusGlyph
         status={task.status}
         size={compact ? 17 : 20}
         onChange={(status) => dispatch({ type: 'updateTask', id: task.id, patch: { status } })}
       />
       <button type="button" className="task-open" onClick={() => openTask(task.id)}>
-        <span className="task-title">{task.title}</span>
-        {!compact && (task.tags.length > 0 || showDate || goal) && (
+        <span className="task-title">
+          {compact && urgent && <span className="high-dot" role="img" aria-label="High priority" />}
+          {task.title}
+        </span>
+        {!compact && (urgent || task.tags.length > 0 || showDate || goal) && (
           <span className="task-meta">
+            {urgent && <HighLabel />}
             {task.tags.map((tag) => (
               <TagMark key={tag} tag={tag} />
             ))}
@@ -33,6 +38,9 @@ export function TaskRow({ task, showDate = false, compact = false }: { task: Tas
     </li>
   );
 }
+
+/** Rose label that makes open high-priority tasks easy to spot. */
+const HighLabel = () => <span className="high-label">High priority</span>;
 
 const SECTION_EMPTY: Record<Status, string> = {
   todo: 'Nothing left to start. Add a task above.',
@@ -126,6 +134,7 @@ export function TaskBoard({ tasks }: { tasks: Task[] }) {
                   </div>
                   <div className="slip-foot">
                     <span className="task-meta">
+                      {t.priority === 'high' && t.status !== 'done' && <HighLabel />}
                       {t.tags.map((tag) => (
                         <TagMark key={tag} tag={tag} />
                       ))}

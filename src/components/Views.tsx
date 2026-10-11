@@ -84,11 +84,10 @@ export function DayView({ day, ...p }: ViewProps & { day: 'today' | 'tomorrow' }
           </section>
 
           {carried.length > 0 && (
-            <section className="carried" aria-labelledby="carried-head">
-              <div className="carried-head">
-                <h2 id="carried-head">
-                  Unfinished from earlier days <span className="count">{carried.length}</span>
-                </h2>
+            <section className="status-section section-overdue carried" aria-labelledby="carried-head">
+              <div className="section-title">
+                <h2 id="carried-head">Unfinished from earlier days</h2>
+                <span className="section-count">{carried.length}</span>
                 <button
                   type="button"
                   className="link-btn"

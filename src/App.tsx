@@ -5,6 +5,7 @@ import type { Task } from './types';
 import { UIContext, type UI } from './ui';
 import type { Layout } from './components/Controls';
 import { GoalEditor, TaskEditor } from './components/Editors';
+import { Mascot } from './components/Mascot';
 import { DayView, GoalsView, WeekView } from './components/Views';
 
 type Route = 'today' | 'tomorrow' | 'week' | 'goals';
@@ -146,6 +147,8 @@ export default function App() {
           {route === 'goals' && <GoalsView today={today} />}
         </main>
       </div>
+
+      <Mascot tasks={state.tasks} today={today} />
 
       {editing?.kind === 'task' && <TaskEditor key={editing.id} id={editing.id} onClose={closeEditor} />}
       {editing?.kind === 'goal' && <GoalEditor key={editing.id} id={editing.id} onClose={closeEditor} />}

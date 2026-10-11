@@ -1,11 +1,14 @@
-import { forwardRef, useState } from 'react';
+import { forwardRef, useRef, useState } from 'react';
 import { addDays } from '../dates';
 import { makeTask, parseQuickAdd, useStore, type Filters } from '../store';
 import { PRIORITIES, TAGS, type Priority, type Tag } from '../types';
 import { parseSpoken, useVoiceInput } from '../voice';
 import { PriorityMark } from './Marks';
 
-/** The main "Add a new task" form: name (typed or spoken), priority, tags and day. */
+/**
+ * The main "Add a new task" form. It sits as one compact row; priority, tags and day
+ * slide open once you click into it, so today's tasks stay near the top of the page.
+ */
 export const AddTaskPanel = forwardRef<HTMLInputElement, { defaultDate: string; today: string }>(function AddTaskPanel(
   { defaultDate, today },
   ref,
@@ -15,7 +18,10 @@ export const AddTaskPanel = forwardRef<HTMLInputElement, { defaultDate: string; 
   const [priority, setPriority] = useState<Priority>('medium');
   const [tags, setTags] = useState<Tag[]>([]);
   const [date, setDate] = useState(defaultDate);
+  const [picking, setPicking] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [added, setAdded] = useState<string | null>(null);
+  const dateRef = useRef<HTMLInputElement>(null);
 
   const voice = useVoiceInput((text, final) => {
     if (!final) {
@@ -27,6 +33,10 @@ export const AddTaskPanel = forwardRef<HTMLInputElement, { defaultDate: string; 
     if (spoken.priority) setPriority(spoken.priority);
     if (spoken.tags.length) setTags((prev) => [...new Set([...prev, ...spoken.tags])]);
   });
+
+  const tomorrow = addDays(today, 1);
+  const touched = priority !== 'medium' || tags.length > 0 || date !== defaultDate;
+  const expanded = focused || title.trim() !== '' || voice.listening || touched;
 
   const toggleTag = (tag: Tag) => setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
 
@@ -47,12 +57,35 @@ export const AddTaskPanel = forwardRef<HTMLInputElement, { defaultDate: string; 
     setTitle('');
     setPriority('medium');
     setTags([]);
+    setDate(defaultDate);
+    setPicking(false);
   };
 
-  const dayLabel = date === today ? 'Today' : date === addDays(today, 1) ? 'Tomorrow' : null;
+  const pickDate = () => {
+    setPicking(true);
+    requestAnimationFrame(() => {
+      const el = dateRef.current;
+      if (!el) return;
+      el.focus();
+      try {
+        el.showPicker?.();
+      } catch {
+        // Some browsers only open the picker from a direct click; focus is enough.
+      }
+    });
+  };
+
+  const customDate = picking || (date !== today && date !== tomorrow);
 
   return (
-    <section className="add-panel" aria-labelledby="add-panel-head">
+    <section
+      className={`add-panel ${expanded ? 'is-open' : ''}`}
+      aria-labelledby="add-panel-head"
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
+      }}
+    >
       <h2 id="add-panel-head">Add a new task</h2>
       <form
         className="add-row"
@@ -88,52 +121,90 @@ export const AddTaskPanel = forwardRef<HTMLInputElement, { defaultDate: string; 
             </svg>
           </button>
         )}
-        <button type="submit" className="primary-btn" disabled={!title.trim()}>
+        <button type="submit" className="primary-btn add-btn" disabled={!title.trim()}>
           Add task
         </button>
       </form>
 
-      <div className="add-options">
-        <div className="option">
-          <span className="option-label" id="opt-priority">
-            Priority
-          </span>
-          <div className="segmented" role="group" aria-labelledby="opt-priority">
-            {PRIORITIES.map((p) => (
-              <button key={p.id} type="button" aria-pressed={priority === p.id} onClick={() => setPriority(p.id)}>
-                <PriorityMark priority={p.id} /> {p.label}
-              </button>
-            ))}
+      <div className="add-drawer" {...(expanded ? {} : { inert: '' })}>
+        <div
+          className="add-options"
+          // Keep focus in the text box while picking options, so the drawer stays open.
+          onMouseDown={(e) => {
+            if ((e.target as HTMLElement).closest('button')) e.preventDefault();
+          }}
+        >
+          <div className="option">
+            <span className="option-label" id="opt-priority">
+              Priority
+            </span>
+            <div className="segmented" role="group" aria-labelledby="opt-priority">
+              {PRIORITIES.map((p) => (
+                <button key={p.id} type="button" aria-pressed={priority === p.id} onClick={() => setPriority(p.id)}>
+                  <PriorityMark priority={p.id} /> {p.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="option">
-          <span className="option-label" id="opt-tags">
-            Tags
-          </span>
-          <div className="chips" role="group" aria-labelledby="opt-tags">
-            {TAGS.map((t) => (
+          <div className="option">
+            <span className="option-label" id="opt-tags">
+              Tags
+            </span>
+            <div className="chips" role="group" aria-labelledby="opt-tags">
+              {TAGS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`chip chip-${t.id} ${tags.includes(t.id) ? 'on' : ''}`}
+                  aria-pressed={tags.includes(t.id)}
+                  onClick={() => toggleTag(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="option">
+            <span className="option-label" id="opt-day">
+              Day
+            </span>
+            <div className="segmented" role="group" aria-labelledby="opt-day">
               <button
-                key={t.id}
                 type="button"
-                className={`chip chip-${t.id} ${tags.includes(t.id) ? 'on' : ''}`}
-                aria-pressed={tags.includes(t.id)}
-                onClick={() => toggleTag(t.id)}
+                aria-pressed={!customDate && date === today}
+                onClick={() => {
+                  setDate(today);
+                  setPicking(false);
+                }}
               >
-                {t.label}
+                Today
               </button>
-            ))}
+              <button
+                type="button"
+                aria-pressed={!customDate && date === tomorrow}
+                onClick={() => {
+                  setDate(tomorrow);
+                  setPicking(false);
+                }}
+              >
+                Tomorrow
+              </button>
+              <button type="button" aria-pressed={customDate} onClick={pickDate}>
+                Pick date
+              </button>
+            </div>
+            {customDate && (
+              <input
+                ref={dateRef}
+                type="date"
+                aria-label="Task day"
+                value={date}
+                onChange={(e) => e.target.value && setDate(e.target.value)}
+              />
+            )}
           </div>
-        </div>
-
-        <div className="option">
-          <label className="option-label" htmlFor="opt-date">
-            Day
-          </label>
-          <span className="day-pick">
-            <input id="opt-date" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
-            {dayLabel && <span className="day-name">{dayLabel}</span>}
-          </span>
         </div>
       </div>
 
